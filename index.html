@@ -397,6 +397,30 @@
     margin-top: 8px; max-width: 100%; max-height: 300px; border-radius: 4px; display:block;
   }
 
+  /* Profiles */
+  .profile-row{ display:flex; gap:8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .profile-chip{
+    display:flex; align-items:center; gap:6px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    border-radius: 20px;
+    padding: 4px 10px 4px 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .profile-chip:hover{ border-color: var(--accent); }
+  .profile-chip img{ width: 22px; height: 22px; border-radius: 50%; object-fit: cover; background: var(--accent-2); }
+  .profile-chip .x{
+    color: var(--text-dim); font-weight: 700; padding: 0 2px; line-height: 1;
+  }
+  .profile-chip .x:hover{ color: var(--danger); }
+
+  /* Send mode */
+  .send-mode{
+    display:flex; gap:8px; align-items:center;
+  }
+  .send-mode select{ width: auto; }
+
   @media (max-width: 880px){
     .layout{ flex-direction: column; }
     .editor-col{ border-right: none; border-bottom: 1px solid var(--border); }
@@ -409,7 +433,15 @@
 <header>
   <div class="brand"><span class="dot"></span> Hookline</div>
   <div class="webhook-input">
-    <input type="url" id="webhookUrl" placeholder="Paste your Discord webhook URL…">
+    <div class="send-mode">
+      <select id="sendMode">
+        <option value="webhook">Webhook URL</option>
+        <option value="bot">Bot token (enables working buttons)</option>
+      </select>
+    </div>
+    <input type="url" id="webhookUrl" placeholder="Paste your Discord webhook URL…" style="flex:1">
+    <input type="text" id="botToken" placeholder="Bot token" style="flex:1; display:none">
+    <input type="text" id="channelId" placeholder="Channel ID" style="flex:0 0 160px; display:none">
   </div>
   <button class="btn primary" id="sendBtn">Send</button>
   <button class="btn" id="exportBtn">Export JSON</button>
@@ -420,6 +452,14 @@
 
 <div class="layout">
   <div class="editor-col">
+    <h2>Sender profiles</h2>
+    <div class="profile-row" id="profileRow"></div>
+    <div class="row tight" style="margin-bottom:18px">
+      <div class="field"><label>Profile name</label><input type="text" id="profileNameInput" placeholder="e.g. Announcements"></div>
+      <div class="field"><label>Avatar URL</label><input type="url" id="profileAvatarInput" placeholder="https://…"></div>
+      <button class="btn small" id="saveProfileBtn">Save profile</button>
+      <button class="btn small" id="useCurrentBtn">Save current as profile</button>
+    </div>
     <h2>Messages</h2>
     <div class="msg-tabs" id="msgTabs"></div>
     <div id="editorBody"></div>
@@ -436,6 +476,9 @@ let state = {
   messages: [ newMessage() ]
 };
 let activeMsg = 0;
+let profiles = [];
+try{ profiles = JSON.parse(localStorage.getItem('hookline-profiles') || '[]'); }catch(e){ profiles = []; }
+function saveProfiles(){ localStorage.setItem('hookline-profiles', JSON.stringify(profiles)); }
 
 function newMessage(){
   return {
@@ -774,8 +817,9 @@ function renderButtonsCard(m){
     <div data-buttons></div>
     ${m.components.length < 25 ? `<button class="btn small" data-action="add-button">+ Add button</button>` : ''}
     <div class="note">
-      Discord only lets <strong>Link buttons</strong> work on plain webhooks &mdash; they just open a URL, so no bot is needed.
-      Other button styles (Primary/Secondary/Success/Danger) will display, but clicking them shows "This interaction failed" unless a bot application is set up to handle them.
+      Plain Discord webhooks <strong>reject any message containing buttons</strong> — Discord's API returns an error, which is why they "don't send".
+      To actually send buttons, switch the mode at the top to <strong>"Bot token"</strong> and enter your bot's token + the channel ID (the bot needs <em>Send Messages</em> permission in that channel).
+      Even then, only <strong>Link</strong> buttons do something when clicked (they open a URL) — Primary/Secondary/Success/Danger buttons will display correctly but need your bot's code to listen for the click and react (e.g. assign a role), since that logic can't live in a static page.
     </div>
   `;
   const list = wrap.querySelector('[data-buttons]');
@@ -1056,14 +1100,36 @@ function importJson(file){
 
 // ---------- Send ----------
 async function sendWebhook(){
-  const url = document.getElementById('webhookUrl').value.trim();
-  if(!url){ setStatus('Add a webhook URL first.', 'err'); return; }
+  const mode = document.getElementById('sendMode').value;
+  const webhookUrl = document.getElementById('webhookUrl').value.trim();
+  const botToken = document.getElementById('botToken').value.trim();
+  const channelId = document.getElementById('channelId').value.trim();
+
+  let endpoint, headers;
+  if(mode === 'bot'){
+    if(!botToken || !channelId){ setStatus('Add a bot token and channel ID first.', 'err'); return; }
+    endpoint = `https://discord.com/api/v10/channels/${channelId}/messages`;
+    headers = { 'Authorization': 'Bot ' + botToken };
+  }else{
+    if(!webhookUrl){ setStatus('Add a webhook URL first.', 'err'); return; }
+    endpoint = webhookUrl;
+    headers = {};
+    const hasButtons = state.messages.some(m=>m.components && m.components.length);
+    if(hasButtons){
+      setStatus('Heads up: Discord webhooks reject messages with buttons — switch to "Bot token" mode to send them.', 'err');
+    }
+  }
+
   setStatus('Sending…', '');
   for(const m of state.messages){
     const payload = buildPayload(m);
     if(!payload.content && !payload.embeds && !payload.components && !(m.files && m.files.length)){
-      setStatus('A message has no content or embeds — add something first.', 'err');
+      setStatus('A message has no content, embeds, buttons or files — add something first.', 'err');
       return;
+    }
+    if(mode === 'webhook' && payload.components){
+      // Webhooks reject the components field entirely — drop it so the rest still sends.
+      delete payload.components;
     }
     try{
       let res;
@@ -1071,11 +1137,11 @@ async function sendWebhook(){
         const form = new FormData();
         form.append('payload_json', JSON.stringify(payload));
         m.files.forEach((f, i)=> form.append('files[' + i + ']', f, f.name));
-        res = await fetch(url, { method: 'POST', body: form });
+        res = await fetch(endpoint, { method: 'POST', headers, body: form });
       }else{
-        res = await fetch(url, {
+        res = await fetch(endpoint, {
           method: 'POST',
-          headers: {'Content-Type':'application/json'},
+          headers: {...headers, 'Content-Type':'application/json'},
           body: JSON.stringify(payload)
         });
       }
@@ -1099,7 +1165,58 @@ function setStatus(text, kind){
   if(kind === 'ok') setTimeout(()=>{ if(el.textContent===text) el.textContent=''; }, 4000);
 }
 
-// ---------- Wire up global controls ----------
+function renderProfiles(){
+  const row = document.getElementById('profileRow');
+  row.innerHTML = '';
+  if(profiles.length === 0){
+    row.innerHTML = `<span class="empty-hint">No saved profiles yet — set a name/avatar below and save it.</span>`;
+  }
+  profiles.forEach((p, pi)=>{
+    const chip = document.createElement('div');
+    chip.className = 'profile-chip';
+    chip.innerHTML = `<img src="${esc(p.avatar_url) || defaultAvatar()}" onerror="this.src='${defaultAvatar()}'"><span>${esc(p.name)}</span><span class="x" data-x="${pi}">✕</span>`;
+    chip.onclick = (ev)=>{
+      if(ev.target.dataset.x !== undefined && ev.target.classList.contains('x')) return;
+      const m = state.messages[activeMsg];
+      m.username = p.name;
+      m.avatar_url = p.avatar_url;
+      renderAll();
+    };
+    chip.querySelector('.x').onclick = (ev)=>{
+      ev.stopPropagation();
+      profiles.splice(pi,1);
+      saveProfiles();
+      renderProfiles();
+    };
+    row.appendChild(chip);
+  });
+}
+
+document.getElementById('saveProfileBtn').onclick = ()=>{
+  const name = document.getElementById('profileNameInput').value.trim();
+  const avatar = document.getElementById('profileAvatarInput').value.trim();
+  if(!name){ setStatus('Give the profile a name first.', 'err'); return; }
+  profiles.push({ name, avatar_url: avatar });
+  saveProfiles();
+  document.getElementById('profileNameInput').value = '';
+  document.getElementById('profileAvatarInput').value = '';
+  renderProfiles();
+};
+document.getElementById('useCurrentBtn').onclick = ()=>{
+  const m = state.messages[activeMsg];
+  if(!m.username){ setStatus('Set an override username on this message first.', 'err'); return; }
+  profiles.push({ name: m.username, avatar_url: m.avatar_url });
+  saveProfiles();
+  renderProfiles();
+};
+document.getElementById('sendMode').onchange = (e)=>{
+  const isBot = e.target.value === 'bot';
+  document.getElementById('webhookUrl').style.display = isBot ? 'none' : '';
+  document.getElementById('botToken').style.display = isBot ? '' : 'none';
+  document.getElementById('channelId').style.display = isBot ? '' : 'none';
+};
+
+
 document.getElementById('sendBtn').onclick = sendWebhook;
 document.getElementById('exportBtn').onclick = exportJson;
 document.getElementById('importBtn').onclick = ()=> document.getElementById('importFile').click();
@@ -1112,6 +1229,7 @@ function renderAll(){
   renderTabs();
   renderEditor();
   renderPreview();
+  renderProfiles();
 }
 renderAll();
 </script>
