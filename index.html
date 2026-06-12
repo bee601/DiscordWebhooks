@@ -1106,6 +1106,7 @@ async function sendWebhook(){
   const channelId = document.getElementById('channelId').value.trim();
 
   let endpoint, headers;
+  let buttonsStripped = false;
   if(mode === 'bot'){
     if(!botToken || !channelId){ setStatus('Add a bot token and channel ID first.', 'err'); return; }
     endpoint = `https://discord.com/api/v10/channels/${channelId}/messages`;
@@ -1114,10 +1115,7 @@ async function sendWebhook(){
     if(!webhookUrl){ setStatus('Add a webhook URL first.', 'err'); return; }
     endpoint = webhookUrl;
     headers = {};
-    const hasButtons = state.messages.some(m=>m.components && m.components.length);
-    if(hasButtons){
-      setStatus('Heads up: Discord webhooks reject messages with buttons — switch to "Bot token" mode to send them.', 'err');
-    }
+    buttonsStripped = state.messages.some(m=>m.components && m.components.length);
   }
 
   setStatus('Sending…', '');
@@ -1155,7 +1153,11 @@ async function sendWebhook(){
       return;
     }
   }
-  setStatus('Sent!', 'ok');
+  if(buttonsStripped){
+    setStatus('Sent — but buttons were left out, because webhooks reject messages with buttons. Switch to "Bot token" mode to send buttons.', 'err');
+  }else{
+    setStatus('Sent!', 'ok');
+  }
 }
 
 function setStatus(text, kind){
