@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hookline — Webhook Message Builder</title>
+<style>
+  :root{
+    --bg: #15161a;
+    --panel: #1e2025;
+    --panel-2: #25282e;
+    --border: #34373e;
+    --text: #e3e5e8;
+    --text-dim: #96989d;
+    --accent: #6ee7c0;
+    --accent-2: #8b7ef0;
+    --discord-bg: #313338;
+    --discord-bg-2: #2b2d31;
+    --danger: #f06464;
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  }
+  *{ box-sizing: border-box; }
+  body{
+    margin:0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+    min-height: 100vh;
+  }
+  header{
+    display:flex;
+    align-items:center;
+    gap: 16px;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #1a1c21, #15161a);
+    position: sticky;
+    top:0;
+    z-index: 50;
+    flex-wrap: wrap;
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: 0.02em;
+    margin-right: 6px;
+  }
+  .brand .dot{
+    width: 12px; height: 12px; border-radius: 3px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    transform: rotate(45deg);
+  }
+  .webhook-input{
+    flex: 1;
+    min-width: 220px;
+    display:flex;
+    align-items:center;
+    gap: 8px;
+  }
+  input[type=text], input[type=url], input[type=number], textarea{
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    width: 100%;
+  }
+  input::placeholder, textarea::placeholder{ color: #6c6f76; }
+  input:focus, textarea:focus{
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+    border-color: transparent;
+  }
+  .btn{
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color .15s, transform .05s;
+  }
+  .btn:hover{ border-color: var(--accent); }
+  .btn:active{ transform: scale(0.98); }
+  .btn.primary{
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #11131a;
+    border: none;
+    font-weight: 700;
+  }
+  .btn.danger{ border-color: var(--danger); color: var(--danger); }
+  .btn.danger:hover{ background: rgba(240,100,100,0.08); }
+  .btn.small{ padding: 5px 10px; font-size: 0.78rem; }
+
+  .layout{
+    display:flex;
+    gap: 0;
+    align-items: flex-start;
+    min-height: calc(100vh - 64px);
+  }
+  .editor-col{
+    flex: 1.15;
+    min-width: 0;
+    padding: 22px;
+    border-right: 1px solid var(--border);
+  }
+  .preview-col{
+    flex: 1;
+    min-width: 0;
+    padding: 22px;
+    position: sticky;
+    top: 64px;
+    align-self: flex-start;
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
+  }
+  .preview-col h2, .editor-col h2{
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    margin: 0 0 14px;
+    display:flex;
+    justify-content: space-between;
+    align-items:center;
+  }
+
+  /* Message tabs */
+  .msg-tabs{
+    display:flex;
+    gap:6px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .msg-tab{
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+  .msg-tab.active{
+    color: var(--text);
+    border-color: var(--accent);
+    background: rgba(110,231,192,0.08);
+  }
+  .msg-tab.add{ color: var(--accent); }
+
+  .card{
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card-head{
+    display:flex;
+    justify-content: space-between;
+    align-items:center;
+    margin-bottom: 10px;
+  }
+  .card-head .title{
+    font-weight: 700;
+    font-size: 0.92rem;
+  }
+  .field{ margin-bottom: 10px; }
+  .field label{
+    display:block;
+    font-size: 0.74rem;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  textarea{ resize: vertical; min-height: 70px; }
+  .row{ display:flex; gap: 10px; }
+  .row > .field{ flex: 1; }
+  .row.tight{ gap: 8px; align-items: flex-end; }
+  .color-row{ display:flex; gap:8px; align-items: center; }
+  .color-row input[type=color]{
+    width: 38px; height: 36px; padding: 2px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--panel-2); cursor: pointer;
+  }
+  .swatches{ display:flex; gap: 6px; flex-wrap: wrap; margin-top:6px; }
+  .swatch{
+    width: 20px; height: 20px; border-radius: 4px; cursor: pointer;
+    border: 1px solid var(--border);
+  }
+  .embed-block{
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent-2);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: var(--panel-2);
+  }
+  .embed-block .card-head{ margin-bottom: 8px; }
+  .field-pair{
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 8px;
+    background: var(--panel);
+  }
+  .inline-check{
+    display:flex; align-items:center; gap:6px;
+    font-size: 0.78rem; color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .muted-btns{ display:flex; gap:8px; flex-wrap: wrap; }
+  .helper{ font-size: 0.75rem; color: var(--text-dim); margin-top: 4px; }
+
+  /* Discord preview styling */
+  .discord-window{
+    background: var(--discord-bg);
+    border-radius: 10px;
+    padding: 16px;
+    font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 0.92rem;
+    color: #dbdee1;
+    border: 1px solid var(--border);
+  }
+  .discord-msg{
+    display:flex;
+    gap: 14px;
+    padding: 4px 0 14px;
+  }
+  .discord-msg + .discord-msg{
+    border-top: 1px solid rgba(255,255,255,0.03);
+    padding-top: 14px;
+  }
+  .discord-avatar{
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--accent-2);
+    flex-shrink: 0;
+    object-fit: cover;
+  }
+  .discord-body{ min-width: 0; flex: 1; }
+  .discord-name{
+    font-weight: 600;
+    color: #fff;
+    font-size: 0.95rem;
+    margin-right: 6px;
+  }
+  .discord-tag{
+    font-size: 0.6rem;
+    background: #5865f2;
+    color: #fff;
+    padding: 1px 4px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-right: 6px;
+    font-weight: 600;
+  }
+  .discord-time{ font-size: 0.7rem; color: #949ba4; }
+  .discord-content{
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.4;
+    margin-top: 2px;
+  }
+  .discord-content code{
+    background: rgba(0,0,0,0.3);
+    padding: 0 3px;
+    border-radius: 3px;
+    font-family: 'Consolas', monospace;
+    font-size: 0.85em;
+  }
+  .discord-content pre{
+    background: rgba(0,0,0,0.3);
+    padding: 8px;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: 'Consolas', monospace;
+    font-size: 0.82em;
+    margin: 4px 0;
+  }
+  .discord-content blockquote{
+    border-left: 4px solid #4e5058;
+    margin: 4px 0;
+    padding-left: 8px;
+    color: #dbdee1;
+  }
+  .discord-embed{
+    margin-top: 6px;
+    border-left: 4px solid #5865f2;
+    background: #2b2d31;
+    border-radius: 4px;
+    padding: 12px;
+    max-width: 432px;
+    display: flex;
+    gap: 12px;
+  }
+  .discord-embed-main{ flex: 1; min-width: 0; }
+  .embed-author{ display:flex; align-items:center; gap:8px; font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 6px; }
+  .embed-author img{ width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+  .embed-title{ font-weight: 700; color: #fff; margin-bottom: 4px; font-size: 0.95rem; }
+  .embed-title a{ color: #00a8fc; text-decoration: none; }
+  .embed-desc{ font-size: 0.85rem; line-height: 1.4; color: #dbdee1; white-space: pre-wrap; word-break: break-word; }
+  .embed-fields{ display:flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .embed-field{ font-size: 0.85rem; }
+  .embed-field.inline{ flex: 1 1 30%; min-width: 100px; }
+  .embed-field.full{ flex: 1 1 100%; }
+  .embed-field-name{ font-weight: 700; color: #fff; margin-bottom: 2px; }
+  .embed-field-value{ color: #dbdee1; white-space: pre-wrap; word-break: break-word; }
+  .embed-image{ margin-top: 8px; max-width: 100%; border-radius: 4px; display:block; }
+  .embed-thumb{ width: 80px; height: 80px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+  .embed-footer{ display:flex; align-items:center; gap:8px; margin-top: 8px; font-size: 0.75rem; color: #949ba4; }
+  .embed-footer img{ width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+  .empty-hint{ color: var(--text-dim); font-size: 0.85rem; padding: 6px 0; }
+  .status{ font-size: 0.8rem; margin-left: 8px; }
+  .status.ok{ color: var(--accent); }
+  .status.err{ color: var(--danger); }
+
+  /* Options / checkboxes */
+  .options-grid{ display:flex; flex-wrap: wrap; gap: 14px 22px; }
+  .checkbox-row{
+    display:flex; align-items:center; gap:8px;
+    font-size: 0.82rem; color: var(--text);
+  }
+  .checkbox-row input{ width: auto; }
+  .note{
+    font-size: 0.74rem; color: var(--text-dim);
+    background: rgba(139,126,240,0.08);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 8px;
+  }
+
+  /* Attachments */
+  .attachment-chip{
+    display:flex; align-items:center; justify-content: space-between;
+    gap: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    margin-bottom: 6px;
+  }
+  .attachment-chip span{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Buttons editor */
+  .button-row{
+    display:flex; gap: 8px; align-items: flex-end; margin-bottom: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: 6px;
+    padding: 8px;
+    flex-wrap: wrap;
+  }
+  .button-row .field{ margin-bottom: 0; flex: 1; min-width: 110px; }
+  select{
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    width: 100%;
+  }
+
+  /* Discord button preview */
+  .discord-buttons{
+    display:flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;
+  }
+  .discord-button{
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #fff;
+    cursor: default;
+    border: none;
+    display:flex; align-items:center; gap:6px;
+  }
+  .discord-button.style-1{ background: #5865f2; }
+  .discord-button.style-2{ background: #4e5058; }
+  .discord-button.style-3{ background: #248046; }
+  .discord-button.style-4{ background: #da373c; }
+  .discord-button.style-5{ background: #4e5058; }
+  .discord-button.style-5::after{ content: '↗'; font-size: 0.75em; opacity: 0.8; }
+  .discord-attachment-img{
+    margin-top: 8px; max-width: 100%; max-height: 300px; border-radius: 4px; display:block;
+  }
+
+  @media (max-width: 880px){
+    .layout{ flex-direction: column; }
+    .editor-col{ border-right: none; border-bottom: 1px solid var(--border); }
+    .preview-col{ position: static; max-height: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span class="dot"></span> Hookline</div>
+  <div class="webhook-input">
+    <input type="url" id="webhookUrl" placeholder="Paste your Discord webhook URL…">
+  </div>
+  <button class="btn primary" id="sendBtn">Send</button>
+  <button class="btn" id="exportBtn">Export JSON</button>
+  <button class="btn" id="importBtn">Import JSON</button>
+  <input type="file" id="importFile" accept="application/json" style="display:none">
+  <span id="status" class="status"></span>
+</header>
+
+<div class="layout">
+  <div class="editor-col">
+    <h2>Messages</h2>
+    <div class="msg-tabs" id="msgTabs"></div>
+    <div id="editorBody"></div>
+  </div>
+  <div class="preview-col">
+    <h2>Live preview</h2>
+    <div class="discord-window" id="preview"></div>
+  </div>
+</div>
+
+<script>
+// ---------- State ----------
+let state = {
+  messages: [ newMessage() ]
+};
+let activeMsg = 0;
+
+function newMessage(){
+  return {
+    content: '',
+    username: '',
+    avatar_url: '',
+    embeds: [],
+    components: [],
+    files: [],
+    tts: false,
+    suppressEmbeds: false,
+    suppressNotifications: false,
+    threadName: ''
+  };
+}
+function newButton(){
+  return { style: 5, label: 'Link', url: '', customId: '', emoji: '', disabled: false };
+}
+function newEmbed(){
+  return {
+    color: '#6ee7c0',
+    author: { name: '', url: '', icon_url: '' },
+    title: '',
+    url: '',
+    description: '',
+    thumbnail: { url: '' },
+    image: { url: '' },
+    fields: [],
+    footer: { text: '', icon_url: '' },
+    timestamp: false
+  };
+}
+
+const SWATCHES = ['#5865F2','#57F287','#FEE75C','#EB459E','#ED4245','#6ee7c0','#8b7ef0','#ffffff','#2b2d31'];
+
+// ---------- Helpers ----------
+function esc(s){
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function md(text){
+  if(!text) return '';
+  let t = esc(text);
+  // code blocks
+  t = t.replace(/```([\s\S]*?)```/g, (m,c)=>`<pre>${c}</pre>`);
+  t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+  t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/__(.+?)__/g, '<u>$1</u>');
+  t = t.replace(/~~(.+?)~~/g, '<s>$1</s>');
+  t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  // blockquote at line start
+  t = t.split('\n').map(line=>{
+    if(line.startsWith('&gt; ')) return `<blockquote>${line.slice(5)}</blockquote>`;
+    return line;
+  }).join('\n');
+  return t;
+}
+function hexToInt(hex){
+  if(!hex) return 0;
+  return parseInt(hex.replace('#',''),16) || 0;
+}
+function intToHex(int){
+  return '#' + (int || 0).toString(16).padStart(6,'0');
+}
+
+// ---------- Rendering: editor ----------
+function renderTabs(){
+  const tabs = document.getElementById('msgTabs');
+  tabs.innerHTML = '';
+  state.messages.forEach((m,i)=>{
+    const t = document.createElement('div');
+    t.className = 'msg-tab' + (i===activeMsg ? ' active' : '');
+    t.textContent = 'Message ' + (i+1);
+    t.onclick = ()=>{ activeMsg = i; renderAll(); };
+    tabs.appendChild(t);
+  });
+  if(state.messages.length < 10){
+    const add = document.createElement('div');
+    add.className = 'msg-tab add';
+    add.textContent = '+ Add message';
+    add.onclick = ()=>{ state.messages.push(newMessage()); activeMsg = state.messages.length-1; renderAll(); };
+    tabs.appendChild(add);
+  }
+}
+
+function renderEditor(){
+  const body = document.getElementById('editorBody');
+  const m = state.messages[activeMsg];
+  body.innerHTML = '';
+
+  // Message card
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="card-head">
+      <div class="title">Message content</div>
+      ${state.messages.length > 1 ? `<button class="btn small danger" data-action="remove-message">Remove message</button>` : ''}
+    </div>
+    <div class="field">
+      <label>Text</label>
+      <textarea data-bind="content" placeholder="Write your message… supports **bold**, *italic*, \`code\`, > quote">${esc(m.content)}</textarea>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Override username</label>
+        <input type="text" data-bind="username" placeholder="Webhook default" value="${esc(m.username)}">
+      </div>
+      <div class="field">
+        <label>Override avatar URL</label>
+        <input type="url" data-bind="avatar_url" placeholder="Webhook default" value="${esc(m.avatar_url)}">
+      </div>
+    </div>
+  `;
+  body.appendChild(card);
+
+  // Options card
+  const optCard = document.createElement('div');
+  optCard.className = 'card';
+  optCard.innerHTML = `
+    <div class="card-head"><div class="title">Message options</div></div>
+    <div class="options-grid">
+      <label class="checkbox-row"><input type="checkbox" data-opt="tts" ${m.tts?'checked':''}> Text-to-speech (TTS)</label>
+      <label class="checkbox-row"><input type="checkbox" data-opt="suppressEmbeds" ${m.suppressEmbeds?'checked':''}> Suppress embeds</label>
+      <label class="checkbox-row"><input type="checkbox" data-opt="suppressNotifications" ${m.suppressNotifications?'checked':''}> Silent message (no @everyone ping)</label>
+    </div>
+    <div class="field" style="margin-top:10px">
+      <label>Thread name (forum/announcement channels only)</label>
+      <input type="text" data-opt="threadName" value="${esc(m.threadName)}" placeholder="Leave blank for normal channels">
+    </div>
+  `;
+  optCard.querySelectorAll('[data-opt]').forEach(el=>{
+    el.addEventListener('input', ()=>{
+      m[el.dataset.opt] = el.type === 'checkbox' ? el.checked : el.value;
+      renderPreview();
+    });
+  });
+  body.appendChild(optCard);
+
+  // Attachments card
+  const attCard = document.createElement('div');
+  attCard.className = 'card';
+  attCard.innerHTML = `
+    <div class="card-head"><div class="title">Attachments</div></div>
+    <div data-attachments></div>
+    <input type="file" data-action="add-files" multiple style="display:none">
+    <button class="btn small" data-action="pick-files">+ Add files</button>
+    <div class="note">Files are uploaded together with the message when you click Send. They aren't included in Export JSON, since JSON can't hold file data.</div>
+  `;
+  const attWrap = attCard.querySelector('[data-attachments]');
+  if(m.files.length === 0){
+    attWrap.innerHTML = `<div class="empty-hint">No files attached.</div>`;
+  }
+  m.files.forEach((f, fi)=>{
+    const chip = document.createElement('div');
+    chip.className = 'attachment-chip';
+    chip.innerHTML = `<span>${esc(f.name)} <span style="color:var(--text-dim)">(${Math.round(f.size/1024)} KB)</span></span><button class="btn small danger" data-action="remove-file">Remove</button>`;
+    chip.querySelector('[data-action="remove-file"]').onclick = ()=>{ m.files.splice(fi,1); renderAll(); };
+    attWrap.appendChild(chip);
+  });
+  const fileInput = attCard.querySelector('[data-action="add-files"]');
+  attCard.querySelector('[data-action="pick-files"]').onclick = ()=> fileInput.click();
+  fileInput.onchange = ()=>{
+    Array.from(fileInput.files).forEach(f=> m.files.push(f));
+    renderAll();
+  };
+  body.appendChild(attCard);
+
+  // Buttons card
+  body.appendChild(renderButtonsCard(m));
+
+
+  // Embeds
+  m.embeds.forEach((e, ei)=> body.appendChild(renderEmbedCard(e, ei)) );
+
+  if(m.embeds.length < 10){
+    const addEmbedBtn = document.createElement('button');
+    addEmbedBtn.className = 'btn';
+    addEmbedBtn.textContent = '+ Add embed';
+    addEmbedBtn.onclick = ()=>{ m.embeds.push(newEmbed()); renderAll(); };
+    body.appendChild(addEmbedBtn);
+  }
+
+  // wire up events
+  card.querySelectorAll('[data-bind]').forEach(el=>{
+    el.addEventListener('input', ()=>{
+      m[el.dataset.bind] = el.value;
+      renderPreview();
+    });
+  });
+  const rm = card.querySelector('[data-action="remove-message"]');
+  if(rm) rm.onclick = ()=>{
+    state.messages.splice(activeMsg,1);
+    activeMsg = Math.max(0, activeMsg-1);
+    renderAll();
+  };
+}
+
+function renderEmbedCard(e, ei){
+  const wrap = document.createElement('div');
+  wrap.className = 'card';
+  wrap.innerHTML = `
+    <div class="card-head">
+      <div class="title">Embed ${ei+1}</div>
+      <button class="btn small danger" data-action="remove-embed">Remove embed</button>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Color</label>
+        <div class="color-row">
+          <input type="color" data-bind="color" value="${e.color}">
+          <input type="text" data-bind="colorHex" value="${e.color}" placeholder="#5865F2">
+        </div>
+        <div class="swatches">
+          ${SWATCHES.map(c=>`<div class="swatch" data-swatch="${c}" style="background:${c}"></div>`).join('')}
+        </div>
+      </div>
+      <div class="field">
+        <label class="inline-check"><input type="checkbox" data-bind="timestamp" ${e.timestamp?'checked':''}> Add current timestamp to footer</label>
+      </div>
+    </div>
+
+    <div class="embed-block">
+      <div class="field"><label>Author name</label><input type="text" data-bind="author.name" value="${esc(e.author.name)}" placeholder="Author name"></div>
+      <div class="row">
+        <div class="field"><label>Author URL</label><input type="url" data-bind="author.url" value="${esc(e.author.url)}" placeholder="https://…"></div>
+        <div class="field"><label>Author icon URL</label><input type="url" data-bind="author.icon_url" value="${esc(e.author.icon_url)}" placeholder="https://…"></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field"><label>Title</label><input type="text" data-bind="title" value="${esc(e.title)}" placeholder="Embed title"></div>
+      <div class="field"><label>Title URL</label><input type="url" data-bind="url" value="${esc(e.url)}" placeholder="https://… (makes title a link)"></div>
+    </div>
+
+    <div class="field">
+      <label>Description</label>
+      <textarea data-bind="description" placeholder="Embed description…">${esc(e.description)}</textarea>
+    </div>
+
+    <div class="row">
+      <div class="field"><label>Image URL</label><input type="url" data-bind="image.url" value="${esc(e.image.url)}" placeholder="https://… (large image)"></div>
+      <div class="field"><label>Thumbnail URL</label><input type="url" data-bind="thumbnail.url" value="${esc(e.thumbnail.url)}" placeholder="https://… (small image, top right)"></div>
+    </div>
+
+    <div class="embed-block">
+      <div class="field"><label>Footer text</label><input type="text" data-bind="footer.text" value="${esc(e.footer.text)}" placeholder="Footer text"></div>
+      <div class="field"><label>Footer icon URL</label><input type="url" data-bind="footer.icon_url" value="${esc(e.footer.icon_url)}" placeholder="https://…"></div>
+    </div>
+
+    <div class="field">
+      <label>Fields</label>
+      <div data-fields></div>
+      ${e.fields.length < 25 ? `<button class="btn small" data-action="add-field">+ Add field</button>` : ''}
+    </div>
+  `;
+
+  // fields
+  const fieldsWrap = wrap.querySelector('[data-fields]');
+  e.fields.forEach((f, fi)=>{
+    const fc = document.createElement('div');
+    fc.className = 'field-pair';
+    fc.innerHTML = `
+      <div class="row">
+        <div class="field" style="flex:2"><label>Name</label><input type="text" data-field-bind="name" value="${esc(f.name)}" placeholder="Field name"></div>
+        <div class="field" style="flex:0 0 90px"><label>Inline?</label>
+          <div class="inline-check"><input type="checkbox" data-field-bind="inline" ${f.inline?'checked':''}> Inline</div>
+        </div>
+        <div class="field" style="flex:0 0 90px;align-self:flex-end">
+          <button class="btn small danger" data-action="remove-field" style="width:100%">Remove</button>
+        </div>
+      </div>
+      <div class="field"><label>Value</label><textarea data-field-bind="value" placeholder="Field value">${esc(f.value)}</textarea></div>
+    `;
+    fc.querySelectorAll('[data-field-bind]').forEach(el=>{
+      el.addEventListener('input', ()=>{
+        const key = el.dataset.fieldBind;
+        f[key] = el.type === 'checkbox' ? el.checked : el.value;
+        renderPreview();
+      });
+    });
+    fc.querySelector('[data-action="remove-field"]').onclick = ()=>{
+      e.fields.splice(fi,1);
+      renderAll();
+    };
+    fieldsWrap.appendChild(fc);
+  });
+
+  // top-level field bindings (supports nested via dot path)
+  wrap.querySelectorAll('[data-bind]').forEach(el=>{
+    el.addEventListener('input', ()=>{
+      const path = el.dataset.bind.split('.');
+      let val = el.type === 'checkbox' ? el.checked : el.value;
+      if(el.dataset.bind === 'colorHex'){
+        e.color = val;
+        renderPreview();
+        wrap.querySelector('input[type=color]').value = /^#[0-9a-fA-F]{6}$/.test(val) ? val : e.color;
+        return;
+      }
+      if(path.length === 1){ e[path[0]] = val; }
+      else { e[path[0]][path[1]] = val; }
+      if(el.dataset.bind === 'color'){
+        wrap.querySelector('input[data-bind="colorHex"]').value = val;
+      }
+      renderPreview();
+    });
+  });
+
+  wrap.querySelectorAll('[data-swatch]').forEach(sw=>{
+    sw.onclick = ()=>{
+      const c = sw.dataset.swatch;
+      e.color = c;
+      wrap.querySelector('input[type=color]').value = c;
+      wrap.querySelector('input[data-bind="colorHex"]').value = c;
+      renderPreview();
+    };
+  });
+
+  wrap.querySelector('[data-action="remove-embed"]').onclick = ()=>{
+    state.messages[activeMsg].embeds.splice(ei,1);
+    renderAll();
+  };
+  const addField = wrap.querySelector('[data-action="add-field"]');
+  if(addField) addField.onclick = ()=>{
+    e.fields.push({ name:'', value:'', inline:false });
+    renderAll();
+  };
+
+  return wrap;
+}
+
+function renderButtonsCard(m){
+  const wrap = document.createElement('div');
+  wrap.className = 'card';
+  wrap.innerHTML = `
+    <div class="card-head"><div class="title">Buttons</div></div>
+    <div data-buttons></div>
+    ${m.components.length < 25 ? `<button class="btn small" data-action="add-button">+ Add button</button>` : ''}
+    <div class="note">
+      Discord only lets <strong>Link buttons</strong> work on plain webhooks &mdash; they just open a URL, so no bot is needed.
+      Other button styles (Primary/Secondary/Success/Danger) will display, but clicking them shows "This interaction failed" unless a bot application is set up to handle them.
+    </div>
+  `;
+  const list = wrap.querySelector('[data-buttons]');
+  if(m.components.length === 0){
+    list.innerHTML = `<div class="empty-hint">No buttons added.</div>`;
+  }
+  m.components.forEach((b, bi)=>{
+    const row = document.createElement('div');
+    row.className = 'button-row';
+    row.innerHTML = `
+      <div class="field">
+        <label>Style</label>
+        <select data-btn-bind="style">
+          <option value="1" ${b.style==1?'selected':''}>Primary (blurple)</option>
+          <option value="2" ${b.style==2?'selected':''}>Secondary (grey)</option>
+          <option value="3" ${b.style==3?'selected':''}>Success (green)</option>
+          <option value="4" ${b.style==4?'selected':''}>Danger (red)</option>
+          <option value="5" ${b.style==5?'selected':''}>Link (URL)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Label</label>
+        <input type="text" data-btn-bind="label" value="${esc(b.label)}" placeholder="Button text" maxlength="80">
+      </div>
+      <div class="field" data-url-field style="${b.style==5?'':'display:none'}">
+        <label>URL</label>
+        <input type="url" data-btn-bind="url" value="${esc(b.url)}" placeholder="https://…">
+      </div>
+      <div class="field">
+        <label>Emoji</label>
+        <input type="text" data-btn-bind="emoji" value="${esc(b.emoji)}" placeholder="😀 (optional)" maxlength="4">
+      </div>
+      <div class="field" style="flex:0 0 90px">
+        <label>&nbsp;</label>
+        <button class="btn small danger" data-action="remove-button" style="width:100%">Remove</button>
+      </div>
+    `;
+    row.querySelectorAll('[data-btn-bind]').forEach(el=>{
+      el.addEventListener('input', ()=>{
+        const key = el.dataset.btnBind;
+        b[key] = key === 'style' ? parseInt(el.value) : el.value;
+        if(key === 'style'){
+          row.querySelector('[data-url-field]').style.display = (b.style==5) ? '' : 'none';
+        }
+        renderPreview();
+      });
+    });
+    row.querySelector('[data-action="remove-button"]').onclick = ()=>{
+      m.components.splice(bi,1);
+      renderAll();
+    };
+    list.appendChild(row);
+  });
+  const addBtn = wrap.querySelector('[data-action="add-button"]');
+  if(addBtn) addBtn.onclick = ()=>{
+    m.components.push(newButton());
+    renderAll();
+  };
+  return wrap;
+}
+
+
+function renderPreview(){
+  const preview = document.getElementById('preview');
+  preview.innerHTML = '';
+
+  state.messages.forEach(m=>{
+    if(!m.content && m.embeds.length === 0 && m.files.length === 0 && m.components.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'discord-msg';
+      empty.innerHTML = `<img class="discord-avatar" src="${m.avatar_url || defaultAvatar()}"><div class="discord-body"><div><span class="discord-name">${esc(m.username||'Webhook')}</span><span class="discord-tag">BOT</span><span class="discord-time">Today</span></div><div class="empty-hint">Nothing to preview yet — add some content or an embed.</div></div>`;
+      preview.appendChild(empty);
+      return;
+    }
+
+    const msgEl = document.createElement('div');
+    msgEl.className = 'discord-msg';
+
+    let html = `
+      <img class="discord-avatar" src="${m.avatar_url || defaultAvatar()}" onerror="this.src='${defaultAvatar()}'">
+      <div class="discord-body">
+        <div><span class="discord-name">${esc(m.username || 'Webhook')}</span><span class="discord-tag">BOT</span><span class="discord-time">Today at ${nowTime()}</span></div>
+    `;
+    if(m.content){
+      html += `<div class="discord-content">${md(m.content)}</div>`;
+    }
+    m.embeds.forEach(e=>{
+      html += renderEmbedHtml(e);
+    });
+    m.files.forEach(f=>{
+      if(f.type && f.type.startsWith('image/')){
+        const url = URL.createObjectURL(f);
+        html += `<img class="discord-attachment-img" src="${url}" alt="${esc(f.name)}">`;
+      }else{
+        html += `<div class="attachment-chip" style="margin-top:8px;max-width:300px"><span>📎 ${esc(f.name)}</span></div>`;
+      }
+    });
+    if(m.components.length){
+      html += `<div class="discord-buttons">` + m.components.map(b=>{
+        const emoji = b.emoji ? `<span>${esc(b.emoji)}</span>` : '';
+        return `<div class="discord-button style-${b.style}">${emoji}<span>${esc(b.label || 'Button')}</span></div>`;
+      }).join('') + `</div>`;
+    }
+    html += `</div>`;
+    msgEl.innerHTML = html;
+    preview.appendChild(msgEl);
+  });
+}
+
+function renderEmbedHtml(e){
+  const hasMain = e.author.name || e.title || e.description || e.fields.length || e.image.url || e.footer.text || e.timestamp;
+  if(!hasMain && !e.thumbnail.url) return '';
+  let main = `<div class="discord-embed" style="border-left-color:${e.color}">`;
+  main += `<div class="discord-embed-main">`;
+  if(e.author.name){
+    main += `<div class="embed-author">${e.author.icon_url ? `<img src="${esc(e.author.icon_url)}">` : ''}${e.author.url ? `<a href="${esc(e.author.url)}" style="color:#fff;text-decoration:none">${esc(e.author.name)}</a>` : esc(e.author.name)}</div>`;
+  }
+  if(e.title){
+    main += `<div class="embed-title">${e.url ? `<a href="${esc(e.url)}" target="_blank">${esc(e.title)}</a>` : esc(e.title)}</div>`;
+  }
+  if(e.description){
+    main += `<div class="embed-desc">${md(e.description)}</div>`;
+  }
+  if(e.fields.length){
+    main += `<div class="embed-fields">`;
+    e.fields.forEach(f=>{
+      main += `<div class="embed-field ${f.inline?'inline':'full'}"><div class="embed-field-name">${esc(f.name)||'\u200b'}</div><div class="embed-field-value">${md(f.value)}</div></div>`;
+    });
+    main += `</div>`;
+  }
+  if(e.image.url){
+    main += `<img class="embed-image" src="${esc(e.image.url)}">`;
+  }
+  if(e.footer.text || e.timestamp){
+    let footerText = esc(e.footer.text || '');
+    if(e.timestamp){
+      footerText += (footerText ? ' • ' : '') + nowDate();
+    }
+    main += `<div class="embed-footer">${e.footer.icon_url ? `<img src="${esc(e.footer.icon_url)}">` : ''}<span>${footerText}</span></div>`;
+  }
+  main += `</div>`;
+  if(e.thumbnail.url){
+    main += `<img class="embed-thumb" src="${esc(e.thumbnail.url)}">`;
+  }
+  main += `</div>`;
+  return main;
+}
+
+function defaultAvatar(){
+  return 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" rx="20" fill="%238b7ef0"/></svg>`).replace(/%23/g,'#');
+}
+function nowTime(){
+  const d = new Date();
+  return d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+}
+function nowDate(){
+  const d = new Date();
+  return d.toLocaleDateString() + ' ' + nowTime();
+}
+
+// ---------- JSON export / import ----------
+function buildPayload(m){
+  const payload = {
+    content: m.content || null,
+    username: m.username || undefined,
+    avatar_url: m.avatar_url || undefined,
+    embeds: m.embeds.map(e=>{
+      const embed = {};
+      if(e.title) embed.title = e.title;
+      if(e.description) embed.description = e.description;
+      if(e.url) embed.url = e.url;
+      if(e.color) embed.color = hexToInt(e.color);
+      if(e.author.name) embed.author = { name: e.author.name, url: e.author.url || undefined, icon_url: e.author.icon_url || undefined };
+      if(e.thumbnail.url) embed.thumbnail = { url: e.thumbnail.url };
+      if(e.image.url) embed.image = { url: e.image.url };
+      if(e.footer.text || e.footer.icon_url) embed.footer = { text: e.footer.text || '', icon_url: e.footer.icon_url || undefined };
+      if(e.fields.length) embed.fields = e.fields.filter(f=>f.name || f.value).map(f=>({ name: f.name || '\u200b', value: f.value || '\u200b', inline: !!f.inline }));
+      if(e.timestamp) embed.timestamp = new Date().toISOString();
+      return embed;
+    })
+  };
+  if(payload.embeds.length === 0) delete payload.embeds;
+  if(m.tts) payload.tts = true;
+  if(m.threadName) payload.thread_name = m.threadName;
+  let flags = 0;
+  if(m.suppressEmbeds) flags |= 1 << 2;
+  if(m.suppressNotifications) flags |= 1 << 12;
+  if(flags) payload.flags = flags;
+  if(m.components && m.components.length){
+    const rows = [];
+    for(let i=0;i<m.components.length;i+=5){
+      rows.push({
+        type: 1,
+        components: m.components.slice(i,i+5).map((b,idx)=>{
+          const btn = { type: 2, style: b.style, label: b.label || 'Button', disabled: !!b.disabled };
+          if(b.style === 5){ btn.url = b.url || 'https://discord.com'; }
+          else { btn.custom_id = b.customId || ('btn_' + i + '_' + idx); }
+          if(b.emoji){ btn.emoji = { name: b.emoji }; }
+          return btn;
+        })
+      });
+    }
+    payload.components = rows;
+  }
+  return payload;
+}
+
+function exportJson(){
+  const data = {
+    messages: state.messages.map(m=> ({ data: buildPayload(m) }) )
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'webhook-messages.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJson(file){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      const msgs = data.messages || [data];
+      state.messages = msgs.map(item=>{
+        const d = item.data || item;
+        const m = newMessage();
+        m.content = d.content || '';
+        m.username = d.username || '';
+        m.avatar_url = d.avatar_url || '';
+        m.tts = !!d.tts;
+        m.threadName = d.thread_name || '';
+        m.suppressEmbeds = !!(d.flags & (1<<2));
+        m.suppressNotifications = !!(d.flags & (1<<12));
+        if(d.components){
+          m.components = [];
+          d.components.forEach(row=>{
+            (row.components||[]).forEach(c=>{
+              m.components.push({
+                style: c.style || 5,
+                label: c.label || '',
+                url: c.url || '',
+                customId: c.custom_id || '',
+                emoji: c.emoji ? (c.emoji.name || '') : '',
+                disabled: !!c.disabled
+              });
+            });
+          });
+        }
+        m.embeds = (d.embeds || []).map(e=>{
+          const ne = newEmbed();
+          ne.title = e.title || '';
+          ne.description = e.description || '';
+          ne.url = e.url || '';
+          ne.color = e.color !== undefined ? intToHex(e.color) : ne.color;
+          if(e.author) ne.author = { name: e.author.name||'', url: e.author.url||'', icon_url: e.author.icon_url||'' };
+          if(e.thumbnail) ne.thumbnail = { url: e.thumbnail.url || '' };
+          if(e.image) ne.image = { url: e.image.url || '' };
+          if(e.footer) ne.footer = { text: e.footer.text||'', icon_url: e.footer.icon_url||'' };
+          if(e.fields) ne.fields = e.fields.map(f=>({ name: f.name||'', value: f.value||'', inline: !!f.inline }));
+          ne.timestamp = !!e.timestamp;
+          return ne;
+        });
+        return m;
+      });
+      if(state.messages.length === 0) state.messages = [newMessage()];
+      activeMsg = 0;
+      renderAll();
+      setStatus('Imported successfully.', 'ok');
+    }catch(err){
+      setStatus('Could not read that file: ' + err.message, 'err');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ---------- Send ----------
+async function sendWebhook(){
+  const url = document.getElementById('webhookUrl').value.trim();
+  if(!url){ setStatus('Add a webhook URL first.', 'err'); return; }
+  setStatus('Sending…', '');
+  for(const m of state.messages){
+    const payload = buildPayload(m);
+    if(!payload.content && !payload.embeds && !payload.components && !(m.files && m.files.length)){
+      setStatus('A message has no content or embeds — add something first.', 'err');
+      return;
+    }
+    try{
+      let res;
+      if(m.files && m.files.length){
+        const form = new FormData();
+        form.append('payload_json', JSON.stringify(payload));
+        m.files.forEach((f, i)=> form.append('files[' + i + ']', f, f.name));
+        res = await fetch(url, { method: 'POST', body: form });
+      }else{
+        res = await fetch(url, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+      }
+      if(!res.ok){
+        const text = await res.text();
+        setStatus(`Discord rejected the message (${res.status}): ${text}`, 'err');
+        return;
+      }
+    }catch(err){
+      setStatus('Network error: ' + err.message, 'err');
+      return;
+    }
+  }
+  setStatus('Sent!', 'ok');
+}
+
+function setStatus(text, kind){
+  const el = document.getElementById('status');
+  el.textContent = text;
+  el.className = 'status ' + (kind || '');
+  if(kind === 'ok') setTimeout(()=>{ if(el.textContent===text) el.textContent=''; }, 4000);
+}
+
+// ---------- Wire up global controls ----------
+document.getElementById('sendBtn').onclick = sendWebhook;
+document.getElementById('exportBtn').onclick = exportJson;
+document.getElementById('importBtn').onclick = ()=> document.getElementById('importFile').click();
+document.getElementById('importFile').onchange = (e)=>{
+  if(e.target.files[0]) importJson(e.target.files[0]);
+  e.target.value = '';
+};
+
+function renderAll(){
+  renderTabs();
+  renderEditor();
+  renderPreview();
+}
+renderAll();
+</script>
+</body>
+</html>
